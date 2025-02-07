@@ -86,49 +86,45 @@ Size Sheet::GetPrintableSize() const {
 }
 
 void Sheet::PrintValues(std::ostream& output) const {
-    for (int x = 0; x < max_row_; ++x) {
-        bool need_separator = false;
-        for (int y = 0; y < max_col_; ++y) {
-            if (need_separator) {
-                output << '\t';
-            }
-            need_separator = true;
-
-            Position pos{ x, y };
-            auto it = sheet_.find(pos);
-            if (it != sheet_.end() && it->second) {
-                auto value = it->second->GetValue();
-                if (std::holds_alternative<std::string>(value)) {
-                    output << std::get<std::string>(value);
-                }
-                if (std::holds_alternative<double>(value)) {
-                    output << std::get<double>(value);
-                }
-                if (std::holds_alternative<FormulaError>(value)) {
-                    output << std::get<FormulaError>(value);
-                }
-            }
-        }
-        output << '\n';
-    }
+    Sheet::Print(output, PrintType::VALUE);
 }
 
 void Sheet::PrintTexts(std::ostream& output) const {
-    for (int x = 0; x < max_row_; ++x) {
-        bool need_separator = false;
-        for (int y = 0; y < max_col_; ++y) {
-            if (need_separator) {
-                output << '\t';
-            }
-            need_separator = true;
+    Sheet::Print(output, PrintType::TEXT);
+}
 
-            Position pos{ x, y };
-            auto it = sheet_.find(pos);
-            if (it != sheet_.end() && it->second) {
-                output << it->second->GetText();
+std::ostream& operator<<(std::ostream& output, const CellInterface::Value& value) 
+{
+    std::visit([&](const auto& val) {output << val;}, value);
+    return output;
+}
+
+void Sheet::Print(std::ostream& output, PrintType type) const {
+    if (sheet_.empty()) {
+        output << ""s;
+        return;
+    }
+    Size printable_area = GetPrintableSize();
+    for (int row = 0; row < printable_area.rows; ++row)
+    {
+        for (int col = 0; col < printable_area.cols; ++col) 
+        {
+            const auto& cell = GetCell({ row, col });
+
+            if (cell == nullptr) 
+            {
+                output << "";
             }
+            else if (type == PrintType::TEXT) {
+                output << cell->GetText();
+            }
+            else {
+                output << cell->GetValue();
+            }
+            if (col < printable_area.cols - 1) 
+                output << "\t";
         }
-        output << '\n';
+        output << "\n";
     }
 }
 
