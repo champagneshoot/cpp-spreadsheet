@@ -20,7 +20,7 @@ void Cell::Set(const std::string& text)
         return;
     }
 
-    if (text[0] != FORMULA_SIGN || (text[0] == FORMULA_SIGN && text.size() == 1))
+    if (text[0] != '=' || (text[0] == '=' && text.size() == 1))
     {
         impl_ = std::make_unique<TextImpl>(text);
         return;
