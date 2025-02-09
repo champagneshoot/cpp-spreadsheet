@@ -1,9 +1,20 @@
+
 #include "cell.h"
 
 #include <cassert>
 #include <iostream>
 #include <string>
 #include <optional>
+
+
+bool IsInvalidFormula(const std::string& text) {
+    return text == "="; 
+}
+
+bool IsFormula(const std::string& text) {
+    return !text.empty() && text[0] == '=';
+}
+
 
 Cell::Cell(SheetInterface& sheet) : impl_(std::make_unique<EmptyImpl>()), sheet_(sheet) {}
 
@@ -13,14 +24,14 @@ Cell::~Cell() = default;
 void Cell::Set(const std::string& text)
 {
     using namespace std::literals;
-  
+
     if (text.empty())
     {
         impl_ = std::make_unique<EmptyImpl>();
         return;
     }
 
-    if (text[0] != '=' || (text[0] == '=' && text.size() == 1))
+    if (!IsFormula(text) || IsInvalidFormula(text))
     {
         impl_ = std::make_unique<TextImpl>(text);
         return;
@@ -47,18 +58,18 @@ std::string Cell::GetText() const { return impl_->GetText(); }
 
 std::vector<Position> Cell::GetReferencedCells() const
 {
-    if (auto* formula_impl = dynamic_cast<FormulaImpl*>(impl_.get()))
-    {
-        return formula_impl->GetReferencedCells();
+    if (!dynamic_cast<FormulaImpl*>(impl_.get())) {
+        return {};
     }
-    return {};
+    return static_cast<FormulaImpl*>(impl_.get())->GetReferencedCells();
 }
+
 
 bool Cell::IsCyclicDependent(const Cell* start_cell_ptr, const Position& end_pos) const
 {
     for (const auto& referenced_cell_pos : GetReferencedCells())
     {
-        if (referenced_cell_pos == end_pos){
+        if (referenced_cell_pos == end_pos) {
             return true;
         }
         const Cell* ref_cell_ptr = dynamic_cast<const Cell*>(sheet_.GetCell(referenced_cell_pos));
@@ -67,10 +78,10 @@ bool Cell::IsCyclicDependent(const Cell* start_cell_ptr, const Position& end_pos
             sheet_.SetCell(referenced_cell_pos, "");
             ref_cell_ptr = dynamic_cast<const Cell*>(sheet_.GetCell(referenced_cell_pos));
         }
-        if (start_cell_ptr == ref_cell_ptr){
+        if (start_cell_ptr == ref_cell_ptr) {
             return true;
         }
-        if (ref_cell_ptr->IsCyclicDependent(start_cell_ptr, end_pos)){
+        if (ref_cell_ptr->IsCyclicDependent(start_cell_ptr, end_pos)) {
             return true;
         }
     }
@@ -92,4 +103,76 @@ bool Cell::IsCacheValid() const
         return formula_impl->IsCacheValid();
     }
     return false;
+}
+
+CellType Cell::EmptyImpl::GetType() const
+{
+    return CellType::EMPTY;
+}
+
+CellInterface::Value Cell::EmptyImpl::GetValue() const
+{
+    return "";
+}
+
+std::string Cell::EmptyImpl::GetText() const
+{
+    return "";
+}
+
+CellType Cell::TextImpl::GetType() const
+{
+    return CellType::TEXT;
+}
+
+CellInterface::Value Cell::TextImpl::GetValue() const
+{
+    if (text_[0] == '\'')
+        return text_.substr(1);
+    return text_;
+}
+
+std::string Cell::TextImpl::GetText() const
+{
+    return text_;
+}
+
+CellType Cell::FormulaImpl::GetType() const
+{
+    return CellType::FORMULA;
+}
+
+CellInterface::Value Cell::FormulaImpl::GetValue() const
+{
+    FormulaInterface::Value eval_result = formula_->Evaluate(sheet_);
+    if (std::holds_alternative<double>(eval_result))
+    {
+        double result = std::get<double>(eval_result);
+        if (std::isinf(result))
+        {
+            return FormulaError(FormulaError::Category::Arithmetic);
+        }
+        return result;
+    }
+    return std::get<FormulaError>(eval_result);
+}
+
+std::string Cell::FormulaImpl::GetText() const
+{
+    return "=" + formula_->GetExpression();
+}
+
+std::vector<Position> Cell::FormulaImpl::GetReferencedCells() const
+{
+    return formula_.get()->GetReferencedCells();
+}
+
+void Cell::FormulaImpl::InvalidateCache()
+{
+    cached_value_.reset();
+}
+
+bool Cell::FormulaImpl::IsCacheValid() const
+{
+    return cached_value_.has_value();
 }
