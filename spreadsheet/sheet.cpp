@@ -85,44 +85,43 @@ Size Sheet::GetPrintableSize() const {
     throw InvalidPositionException("The size of printable area has not been updated");
 }
 
-void Sheet::PrintValues(std::ostream& output) const {
-    Sheet::Print(output, PrintType::VALUE);
-}
-
-void Sheet::PrintTexts(std::ostream& output) const {
-    Sheet::Print(output, PrintType::TEXT);
-}
-
 std::ostream& operator<<(std::ostream& output, const CellInterface::Value& value) 
 {
     std::visit([&](const auto& val) {output << val;}, value);
     return output;
 }
 
-void Sheet::Print(std::ostream& output, PrintType type) const {
+void Sheet::PrintValues(std::ostream& output) const {
+    Print(output, [](std::ostream& out, const CellInterface* cell) {
+        if (!cell)
+            out << "";
+        else
+            out << cell->GetValue();
+    });
+}
+
+void Sheet::PrintTexts(std::ostream& output) const {
+    Print(output, [](std::ostream& out, const CellInterface* cell) {
+        if (!cell)
+            out << "";
+        else
+            out << cell->GetText();
+    });
+}
+
+void Sheet::Print(std::ostream& output,
+                  std::function<void(std::ostream&, const CellInterface*)> print_func) const {
     if (sheet_.empty()) {
-        output << ""s;
         return;
     }
     Size printable_area = GetPrintableSize();
-    for (int row = 0; row < printable_area.rows; ++row)
-    {
-        for (int col = 0; col < printable_area.cols; ++col) 
-        {
-            const auto& cell = GetCell({ row, col });
-
-            if (cell == nullptr) 
-            {
-                output << "";
-            }
-            else if (type == PrintType::TEXT) {
-                output << cell->GetText();
-            }
-            else {
-                output << cell->GetValue();
-            }
-            if (col < printable_area.cols - 1) 
+    for (int row = 0; row < printable_area.rows; ++row) {
+        for (int col = 0; col < printable_area.cols; ++col) {
+            const CellInterface* cell = GetCell({ row, col });
+            print_func(output, cell);
+            if (col < printable_area.cols - 1) {
                 output << "\t";
+            }
         }
         output << "\n";
     }
