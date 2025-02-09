@@ -47,78 +47,36 @@ private:
     class EmptyImpl : public Impl {
     public:
         EmptyImpl() = default;
-        CellType GetType() const override
-        {
-            return CellType::EMPTY;
-        }
-        CellInterface::Value GetValue() const override { return ""; }
-        std::string GetText() const override { return ""; }
+        CellType GetType() const override;
+        CellInterface::Value GetValue() const override;
+        std::string GetText() const override;
     };
 
     class TextImpl : public Impl {
     public:
         explicit TextImpl(std::string text) : text_(text) {}
-        CellType GetType() const override
-        {
-            return CellType::TEXT;
-        }
-        CellInterface::Value GetValue() const override
-        {
-            if (text_[0] == '\'')
-                return text_.substr(1);
-            return text_;
-        }
-        std::string GetText() const override { return text_; }
+        CellType GetType() const override;
+        CellInterface::Value GetValue() const override;
+        std::string GetText() const override;
 
     private:
         std::string text_;
     };
 
-    class FormulaImpl : public Impl 
+    class FormulaImpl : public Impl
     {
     public:
         FormulaImpl(SheetInterface& sheet, std::string formula) : sheet_(sheet), formula_(ParseFormula(formula)) {}
-        CellType GetType() const override
-        {
-            return CellType::FORMULA;
-        }
-        CellInterface::Value GetValue() const override
-        {
-            FormulaInterface::Value eval_result = formula_->Evaluate(sheet_);
-            if (std::holds_alternative<double>(eval_result)) 
-            {
-                double result = std::get<double>(eval_result);
-                if (std::isinf(result)) 
-                { 
-                    return FormulaError(FormulaError::Category::Arithmetic);
-                }
-                return result;
-            }
-                return std::get<FormulaError>(eval_result);
-        }
-
-        std::string GetText() const override
-        {
-            return "=" + formula_->GetExpression();
-        }
-
-        std::vector<Position> GetReferencedCells() const
-        {
-            return formula_.get()->GetReferencedCells();
-        }
-        void InvalidateCache()
-        {
-            cached_value_.reset();
-        }
-        bool IsCacheValid() const
-        {
-            return cached_value_.has_value();
-        }
+        CellType GetType() const override;
+        CellInterface::Value GetValue() const override;
+        std::string GetText() const override;
+        std::vector<Position> GetReferencedCells() const;
+        void InvalidateCache();
+        bool IsCacheValid() const;
 
     private:
         SheetInterface& sheet_;
         std::unique_ptr<FormulaInterface> formula_;
         std::optional<CellInterface::Value> cached_value_;
-        
     };
 };
