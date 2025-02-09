@@ -39,7 +39,7 @@ private:
 
     std::unordered_map<Position, std::unique_ptr<Cell>, std::hash<Position>> sheet_;
 
-    enum class PrintType;
+    //enum class PrintType;
     void Print(std::ostream& output,  std::function<void(std::ostream&, const CellInterface*)> print_func) const;
     CellInterface* GetCellImpl(Position pos);
 
