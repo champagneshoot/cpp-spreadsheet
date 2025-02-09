@@ -65,23 +65,27 @@ std::vector<Position> Cell::GetReferencedCells() const
 }
 
 
-bool Cell::IsCyclicDependent(const Cell* start_cell_ptr, const Position& end_pos) const
+bool IsDirectCycle(const Cell* ref_cell_ptr, const Position& referenced_cell_pos, const Cell* start_cell_ptr, const Position& end_pos) 
 {
-    for (const auto& referenced_cell_pos : GetReferencedCells())
+    return referenced_cell_pos == end_pos || ref_cell_ptr == start_cell_ptr;
+}
+
+bool Cell::IsCyclicDependent(const Cell* start_cell_ptr, const Position& end_pos) const {
+    for (const auto& referenced_cell_pos : GetReferencedCells()) 
     {
-        if (referenced_cell_pos == end_pos) {
-            return true;
-        }
         const Cell* ref_cell_ptr = dynamic_cast<const Cell*>(sheet_.GetCell(referenced_cell_pos));
-        if (!ref_cell_ptr)
+
+        if (!ref_cell_ptr) 
         {
             sheet_.SetCell(referenced_cell_pos, "");
             ref_cell_ptr = dynamic_cast<const Cell*>(sheet_.GetCell(referenced_cell_pos));
+            if (!ref_cell_ptr) {
+                continue;
+            }
         }
-        if (start_cell_ptr == ref_cell_ptr) {
-            return true;
-        }
-        if (ref_cell_ptr->IsCyclicDependent(start_cell_ptr, end_pos)) {
+
+        if (IsDirectCycle(ref_cell_ptr, referenced_cell_pos, start_cell_ptr, end_pos) ||
+            ref_cell_ptr->IsCyclicDependent(start_cell_ptr, end_pos)) {
             return true;
         }
     }
