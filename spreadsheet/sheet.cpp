@@ -9,11 +9,12 @@
 
 using namespace std::literals;
 
+/*
 enum class Sheet::PrintType {
     TEXT,
     VALUE
 };
-
+*/
 Sheet::~Sheet() {}
 
 void Sheet::SetCell(Position pos, std::string text) {
