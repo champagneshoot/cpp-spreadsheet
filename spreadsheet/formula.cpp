@@ -16,8 +16,27 @@ std::ostream& operator<<(std::ostream& output, FormulaError fe)
     return output << fe.ToString();
 }
 
-double GetCellValueAsDouble(const CellInterface* cell)
-{
+double ParseStringToDouble(const std::string& str) {
+    try {
+        size_t pos;
+        double result = std::stod(str, &pos);
+        
+        if (pos != str.size()) {
+            throw FormulaError(FormulaError::Category::Value);
+        }
+        if (std::isinf(result) || std::isnan(result)) {
+            throw FormulaError(FormulaError::Category::Arithmetic);
+        }
+        
+        return result;
+    } catch (const std::invalid_argument&) {
+        throw FormulaError(FormulaError::Category::Value);
+    } catch (const std::out_of_range&) {
+        throw FormulaError(FormulaError::Category::Value);
+    }
+}
+
+double GetCellValueAsDouble(const CellInterface* cell) {
     auto value = cell->GetValue();
 
     if (std::holds_alternative<double>(value)) {
@@ -27,25 +46,9 @@ double GetCellValueAsDouble(const CellInterface* cell)
         throw std::get<FormulaError>(value);
     }
     if (std::holds_alternative<std::string>(value)) {
-        const std::string& str = std::get<std::string>(value);
-        try {
-            size_t pos;
-            double result = std::stod(str, &pos);
-            if (pos != str.size()) {
-                throw FormulaError(FormulaError::Category::Value);
-            }
-            if (std::isinf(result) || std::isnan(result)) {
-                throw FormulaError(FormulaError::Category::Arithmetic);
-            }
-            return result;
-        }
-        catch (const std::invalid_argument&) {
-            throw FormulaError(FormulaError::Category::Value);
-        }
-        catch (const std::out_of_range&) {
-            throw FormulaError(FormulaError::Category::Value);
-        }
+        return ParseStringToDouble(std::get<std::string>(value));
     }
+    
     return 0.0;
 }
 
