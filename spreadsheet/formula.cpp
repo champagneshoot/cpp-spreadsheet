@@ -16,53 +16,64 @@ std::ostream& operator<<(std::ostream& output, FormulaError fe)
     return output << fe.ToString();
 }
 
+double GetCellValueAsDouble(const CellInterface* cell)
+{
+    auto value = cell->GetValue();
+
+    if (std::holds_alternative<double>(value)) {
+        return std::get<double>(value);
+    }
+    if (std::holds_alternative<FormulaError>(value)) {
+        throw std::get<FormulaError>(value);
+    }
+    if (std::holds_alternative<std::string>(value)) {
+        const std::string& str = std::get<std::string>(value);
+        try {
+            size_t pos;
+            double result = std::stod(str, &pos);
+            if (pos != str.size()) {
+                throw FormulaError(FormulaError::Category::Value);
+            }
+            if (std::isinf(result) || std::isnan(result)) {
+                throw FormulaError(FormulaError::Category::Arithmetic);
+            }
+            return result;
+        }
+        catch (const std::invalid_argument&) {
+            throw FormulaError(FormulaError::Category::Value);
+        }
+        catch (const std::out_of_range&) {
+            throw FormulaError(FormulaError::Category::Value);
+        }
+    }
+    return 0.0;
+}
+
 namespace {
     class Formula : public FormulaInterface {
     public:
         explicit Formula(std::string expression)
             : ast_(ParseFormulaAST(std::move(expression))),
-            referenced_cells_(ast_.GetCells().begin(), ast_.GetCells().end())
-        {}
+            referenced_cells_(ast_.GetCells().begin(), ast_.GetCells().end()){}
 
         Value Evaluate(const SheetInterface& sheet) const override {
-    try {
-        return ast_.Execute([&sheet](const Position& pos) {
-            const CellInterface* cell = sheet.GetCell(pos);
+            try {
+                return ast_.Execute([this, &sheet](const Position& pos) 
+                    {  
+                    const CellInterface* cell = sheet.GetCell(pos);
 
-            if (!cell || (std::holds_alternative<std::string>(cell->GetValue()) &&
-                          std::get<std::string>(cell->GetValue()).empty())) {
-                return 0.0;
-            }
+                    if (!cell || (std::holds_alternative<std::string>(cell->GetValue()) &&
+                        std::get<std::string>(cell->GetValue()).empty())) {
+                        return 0.0;
+                    }
 
-            auto value = cell->GetValue();
-            if (std::holds_alternative<double>(value)) {
-                return std::get<double>(value);
-            } else if (std::holds_alternative<std::string>(value)) {
-                std::string tmp = std::get<std::string>(value);
-                try {
-                    size_t pos;
-                    double result = std::stod(tmp, &pos);
-                    if (pos != tmp.size()) {
-                        throw FormulaError(FormulaError::Category::Value);
-                    }
-                    if (std::isinf(result) || std::isnan(result)) {
-                        throw FormulaError(FormulaError::Category::Arithmetic);
-                    }
-                    return result;
-                } catch (const std::invalid_argument&) {
-                    throw FormulaError(FormulaError::Category::Value);
-                } catch (const std::out_of_range&) {
-                    throw FormulaError(FormulaError::Category::Value);
-                }
-            } else if (std::holds_alternative<FormulaError>(value)) {
-                throw std::get<FormulaError>(value);
+                    return GetCellValueAsDouble(cell);
+                    });
             }
-            return 0.0;
-        });
-    } catch (const FormulaError& ex_fe) {
-        return ex_fe;  
-    }
-}
+            catch (const FormulaError& ex_fe) {
+                return ex_fe;
+            }
+        }
         std::string GetExpression() const override
         {
             std::stringstream ss;
